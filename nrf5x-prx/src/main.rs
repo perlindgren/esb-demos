@@ -85,6 +85,7 @@ const APP: () = {
     fn init(ctx: init::Context) -> init::LateResources {
         let _clocks = hal::clocks::Clocks::new(ctx.device.CLOCK).enable_ext_hfosc();
         rtt_init_print!();
+        rprintln!("RTX started");
 
         #[cfg(not(feature = "51"))]
         let p0 = hal::gpio::p0::Parts::new(ctx.device.P0);
@@ -138,8 +139,8 @@ const APP: () = {
         loop {
             // Did we receive any packet ?
             if let Some(packet) = ctx.resources.esb_app.read_packet() {
-                //let payload = core::str::from_utf8(&packet[..]).unwrap();
-
+                let payload = core::str::from_utf8(&packet[..]).unwrap();
+                rprintln!("payload {}", payload);
                 //ctx.resources.serial.write_str("Payload: ").unwrap();
                 //let payload = core::str::from_utf8(&packet[..]).unwrap();
                 //ctx.resources.serial.write_str(payload).unwrap();
@@ -164,9 +165,14 @@ const APP: () = {
     #[task(binds = RADIO, resources = [esb_irq], priority = 3)]
     fn radio(ctx: radio::Context) {
         match ctx.resources.esb_irq.radio_interrupt() {
-            Err(Error::MaximumAttempts) => {}
+            Err(Error::MaximumAttempts) => {
+                rprintln!("radio MaxAttempts");
+            }
             Err(e) => panic!("Found error {:?}", e),
-            Ok(_) => {} //rprintln!("{:?}", state).unwrap(),
+            Ok(_) => {
+                //rprintln!("{:?}", state);
+                rprintln!("radio interrupt ok");
+            }
         }
     }
 

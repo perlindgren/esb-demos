@@ -1,0 +1,14 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"type": "shell",
+			"command": "cargo check --features 52832",
+			"problemMatcher": [
+				"$rustc"
+			],
+			"group": "build",
+			"label": "cargo check --features 52832"
+		}
+	]
+}
