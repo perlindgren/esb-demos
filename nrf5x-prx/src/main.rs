@@ -18,11 +18,20 @@ use {
         panic::PanicInfo,
         sync::atomic::{compiler_fence, AtomicBool, Ordering},
     },
+    embedded_hal::digital::v2::OutputPin,
+    // nrf52832_hal::gpio;
+    // use nrf52832_hal::gpio::p0::*;
+    // use nrf52832_hal::gpio::Level;
+    // use nrf52832_hal::gpio::*;
+    // use nrf52832_hal::spim::Spim;
     esb::{
         consts::*, irq::StatePRX, Addresses, BBBuffer, ConfigBuilder, ConstBBBuffer, Error, EsbApp,
         EsbBuffer, EsbHeader, EsbIrq, IrqTimer,
     },
-    hal::{gpio::Level, pac::TIMER0},
+    hal::{
+        gpio::{self, p0, p0::*, Level, PushPull},
+        pac::TIMER0,
+    },
     rtt_target::{rprintln, rtt_init_print},
 };
 
@@ -42,6 +51,29 @@ const APP: () = {
         let _clocks = hal::clocks::Clocks::new(ctx.device.CLOCK).enable_ext_hfosc();
         rtt_init_print!();
         rprintln!("RTX init");
+        // let p = ctx.device;
+
+        let port0 = p0::Parts::new(ctx.device.P0);
+
+        let mut led1: P0_13<gpio::Output<PushPull>> =
+            port0.p0_13.into_push_pull_output(Level::High);
+        let mut led2: P0_14<gpio::Output<PushPull>> =
+            port0.p0_14.into_push_pull_output(Level::High);
+        let mut led3: P0_15<gpio::Output<PushPull>> =
+            port0.p0_15.into_push_pull_output(Level::High);
+        let mut led4: P0_16<gpio::Output<PushPull>> =
+            port0.p0_16.into_push_pull_output(Level::High);
+
+        loop {
+            led1.set_low();
+            led2.set_low();
+            led3.set_low();
+            led4.set_low();
+            led1.set_high();
+            led2.set_high();
+            led3.set_high();
+            led4.set_high();
+        }
 
         // We statically allocate space for buffers.
         static BUFFER: EsbBuffer<U1024, U1024> = EsbBuffer {
@@ -54,7 +86,7 @@ const APP: () = {
         let addresses = Addresses::default();
 
         // ESB driver configuration
-        // Default is to listen to packes on all pipes
+        // Default is to listen to packages on all pipes
         let config = ConfigBuilder::default()
             .maximum_transmit_attempts(1)
             .max_payload_size(MAX_PAYLOAD_SIZE)
