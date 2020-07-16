@@ -29,8 +29,9 @@ use {
         EsbBuffer, EsbHeader, EsbIrq, IrqTimer,
     },
     hal::{
-        gpio::{self, p0, p0::*, Level, PushPull},
+        gpio::{self, p0, p0::*, p1, p1::*, Level, PushPull},
         pac::TIMER0,
+        spim::Spim,
     },
     rtt_target::{rprintln, rtt_init_print},
 };
@@ -48,12 +49,13 @@ const APP: () = {
 
     #[init]
     fn init(ctx: init::Context) -> init::LateResources {
-        let _clocks = hal::clocks::Clocks::new(ctx.device.CLOCK).enable_ext_hfosc();
+        let p = ctx.device;
+        let _clocks = hal::clocks::Clocks::new(p.CLOCK).enable_ext_hfosc();
         rtt_init_print!();
         rprintln!("RTX init");
-        // let p = ctx.device;
 
-        let port0 = p0::Parts::new(ctx.device.P0);
+        let port0 = p0::Parts::new(p.P0);
+        let port1 = p1::Parts::new(p.P1);
 
         let mut led1: P0_13<gpio::Output<PushPull>> =
             port0.p0_13.into_push_pull_output(Level::High);
@@ -64,15 +66,111 @@ const APP: () = {
         let mut led4: P0_16<gpio::Output<PushPull>> =
             port0.p0_16.into_push_pull_output(Level::High);
 
+        let _ = led1.set_low();
+        let _ = led2.set_low();
+        let _ = led3.set_low();
+        let _ = led4.set_low();
+        // let _ = led1.set_high();
+        // let _ = led2.set_high();
+        // let _ = led3.set_high();
+        // let _ = led4.set_high();
+
+        let mut cs = port1.p1_01.into_push_pull_output(Level::High);
+        let spimiso = port1.p1_02.into_floating_input().degrade();
+        let spimosi = port1.p1_03.into_push_pull_output(Level::Low).degrade();
+        let spiclk = port1.p1_04.into_push_pull_output(Level::Low).degrade();
+
+        let pins = hal::spim::Pins {
+            sck: spiclk,
+            miso: Some(spimiso),
+            mosi: Some(spimosi),
+        };
+
+        let mut spi = Spim::new(
+            p.SPIM2,
+            pins,
+            hal::spim::Frequency::K500,
+            hal::spim::MODE_3,
+            0,
+        );
+
+        //let _ = cs.set_high();
+
+        // loop {
+        //     let _ = cs.set_high();
+        //     let _ = p25.set_high();
+        //     rprintln!("high");
+        //     let _ = cs.set_low();
+        //     let _ = p25.set_low();
+        //     rprintln!("low");
+        // }
+
+        // let mut tests_ok = true;
+
+        // rprintln!("RTX init");
+        // let reference_data = &[0u8, 1, 2, 3];
+
+        // rprintln!("loopback {:?}", reference_data);
+
+        // // Read only test vector
+        // let test_vec1 = *reference_data;
+        // rprintln!("test_vec1 {:?}", test_vec1);
+        // rprintln!("{:p}", &test_vec1);
+        // let mut readbuf = [0; 16];
+
+        // This will write 8 bytes, then shift out ORC
+
+        // Note :     spi.read( &mut cs.degrade(), reference_data, &mut readbuf )
+        //            will fail because reference data is in flash, the copy to
+        //            an array will move it to RAM.
+
+        // match spi.read(&mut cs.degrade(), &test_vec1, &mut readbuf) {
+        //     Ok(_) => {
+        //         for i in 0..test_vec1.len() {
+        //             tests_ok &= test_vec1[i] == readbuf[i];
+        //         }
+        //         if !tests_ok {
+        //             led1.set_low().unwrap();
+        //         } else {
+        //             const ORC: u8 = 0;
+        //             for i in test_vec1.len()..readbuf.len() {
+        //                 if ORC != readbuf[i] {
+        //                     tests_ok = false;
+        //                     led1.set_low().unwrap();
+        //                 }
+        //             }
+        //         }
+        //     }
+        //     Err(err) => {
+        //         rprintln!("error {:?}", err);
+        //         tests_ok = false;
+        //         led1.set_low().unwrap();
+        //     }
+        // }
+
+        // rprintln!("test {:?}, data back {:?}", tests_ok, readbuf);
+        let mut cs = cs.degrade();
+        //let who_am_i = &[0x0Fu8 << 1 | 1, 0]; // read bit set
+        let who_am_i = &[0x8Fu8, 0]; // read bit set
+                                     //rprintln!("req {:?}", req);
+        let mut first = true;
         loop {
-            led1.set_low();
-            led2.set_low();
-            led3.set_low();
-            led4.set_low();
-            led1.set_high();
-            led2.set_high();
-            led3.set_high();
-            led4.set_high();
+            let mut req = *who_am_i;
+            match spi.transfer(&mut cs, &mut req) {
+                Ok(_) => {
+                    if first {
+                        first = false;
+                        rprintln!("ok {:?}", req);
+                    }
+                }
+                Err(err) => {
+                    rprintln!("error {:?}", err);
+                }
+            };
+        }
+
+        loop {
+            continue;
         }
 
         // We statically allocate space for buffers.
@@ -116,7 +214,7 @@ const APP: () = {
         // of the ESB driver.
         // On a `TIMER0` interrupt we call the `timer_interrupt` method on the `esb_irq` object.
         let (esb_app, esb_irq, esb_timer) = BUFFER
-            .try_split(ctx.device.TIMER0, ctx.device.RADIO, addresses, config)
+            .try_split(p.TIMER0, p.RADIO, addresses, config)
             .unwrap();
 
         // We set the "role" of the driver to PRX and start receiving packages.
