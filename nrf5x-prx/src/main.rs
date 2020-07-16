@@ -149,29 +149,25 @@ const APP: () = {
         // }
 
         // rprintln!("test {:?}, data back {:?}", tests_ok, readbuf);
-        let mut cs = cs.degrade();
-        //let who_am_i = &[0x0Fu8 << 1 | 1, 0]; // read bit set
-        let who_am_i = &[0x8Fu8, 0]; // read bit set
-                                     //rprintln!("req {:?}", req);
-        let mut first = true;
-        loop {
-            let mut req = *who_am_i;
-            match spi.transfer(&mut cs, &mut req) {
-                Ok(_) => {
-                    if first {
-                        first = false;
-                        rprintln!("ok {:?}", req);
-                    }
-                }
-                Err(err) => {
-                    rprintln!("error {:?}", err);
-                }
-            };
-        }
-
-        loop {
-            continue;
-        }
+        // let mut cs = cs.degrade();
+        // //let who_am_i = &[0x0Fu8 << 1 | 1, 0]; // read bit set
+        // let who_am_i = &[0x8Fu8, 0]; // read bit set
+        //                              //rprintln!("req {:?}", req);
+        // let mut first = true;
+        // loop {
+        //     let mut req = *who_am_i;
+        //     match spi.transfer(&mut cs, &mut req) {
+        //         Ok(_) => {
+        //             if first {
+        //                 first = false;
+        //                 rprintln!("ok {:?}", req);
+        //             }
+        //         }
+        //         Err(err) => {
+        //             rprintln!("error {:?}", err);
+        //         }
+        //     };
+        // }
 
         // We statically allocate space for buffers.
         static BUFFER: EsbBuffer<U1024, U1024> = EsbBuffer {

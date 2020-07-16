@@ -48,11 +48,13 @@ const APP: () = {
 
     #[init]
     fn init(ctx: init::Context) -> init::LateResources {
-        let _clocks = hal::clocks::Clocks::new(ctx.device.CLOCK).enable_ext_hfosc();
+        let d = ctx.device;
+
+        let _clocks = hal::clocks::Clocks::new(d.CLOCK).enable_ext_hfosc();
         rtt_init_print!();
         rprintln!("PTX init");
 
-        let port0 = p0::Parts::new(ctx.device.P0);
+        let port0 = p0::Parts::new(d.P0);
 
         // Who am I
 
@@ -60,6 +62,43 @@ const APP: () = {
         let spimiso = port0.p0_23.into_floating_input().degrade();
         let spimosi = port0.p0_29.into_push_pull_output(Level::Low).degrade();
         let spiclk = port0.p0_12.into_push_pull_output(Level::Low).degrade();
+
+        let pins = hal::spim::Pins {
+            sck: spiclk,
+            miso: Some(spimiso),
+            mosi: Some(spimosi),
+        };
+
+        let mut spi = Spim::new(
+            d.SPIM2,
+            pins,
+            hal::spim::Frequency::K500,
+            hal::spim::MODE_3,
+            0,
+        );
+
+        // rprintln!("test {:?}, data back {:?}", tests_ok, readbuf);
+        let mut cs = cs.degrade();
+        //let who_am_i = &[0x0Fu8 << 1 | 1, 0]; // read bit set
+        let who_am_i = &[0x8Fu8, 0]; // read bit set
+                                     //rprintln!("req {:?}", req);
+        let mut first = true;
+        
+            let mut req = *who_am_i;
+            match spi.transfer(&mut cs, &mut req) {
+                Ok(_) => {
+                    if first {
+                        first = false;
+                        rprintln!("ok {:?}", req);
+                    }
+                }
+                Err(err) => {
+                    rprintln!("error {:?}", err);
+                }
+            };
+        
+
+       
 
         static BUFFER: EsbBuffer<U1024, U1024> = EsbBuffer {
             app_to_radio_buf: BBBuffer(ConstBBBuffer::new()),
@@ -74,11 +113,11 @@ const APP: () = {
             .unwrap();
 
         let (esb_app, esb_irq, esb_timer) = BUFFER
-            .try_split(ctx.device.TIMER0, ctx.device.RADIO, addresses, config)
+            .try_split(d.TIMER0, d.RADIO, addresses, config)
             .unwrap();
 
         // setup timer for delay
-        let timer = ctx.device.TIMER1;
+        let timer = d.TIMER1;
         timer.bitmode.write(|w| w.bitmode()._32bit());
 
         // 16 Mhz / 2**9 = 31250 Hz
