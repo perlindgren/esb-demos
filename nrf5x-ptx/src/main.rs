@@ -18,6 +18,7 @@ use {
         panic::PanicInfo,
         sync::atomic::{compiler_fence, AtomicBool, Ordering},
     },
+    embedded_hal::blocking::spi::{Transfer, Write},
     esb::{
         consts::*, irq::StatePTX, Addresses, BBBuffer, ConfigBuilder, ConstBBBuffer, Error, EsbApp,
         EsbBuffer, EsbHeader, EsbIrq, IrqTimer,
@@ -27,6 +28,7 @@ use {
         pac::{TIMER0, TIMER1},
         spim::Spim,
     },
+    lsm6,
     rtt_target::{rprintln, rtt_init_print},
 };
 
@@ -83,22 +85,21 @@ const APP: () = {
         let who_am_i = &[0x8Fu8, 0]; // read bit set
                                      //rprintln!("req {:?}", req);
         let mut first = true;
-        
-            let mut req = *who_am_i;
-            match spi.transfer(&mut cs, &mut req) {
-                Ok(_) => {
-                    if first {
-                        first = false;
-                        rprintln!("ok {:?}", req);
-                    }
-                }
-                Err(err) => {
-                    rprintln!("error {:?}", err);
-                }
-            };
-        
 
-       
+        let mut req = *who_am_i;
+        match spi.transfer(&mut cs, &mut req) {
+            Ok(_) => {
+                if first {
+                    first = false;
+                    rprintln!("ok {:?}", req);
+                }
+            }
+            Err(err) => {
+                rprintln!("error {:?}", err);
+            }
+        };
+
+        test_embedded_hal(&spi, &mut cs);
 
         static BUFFER: EsbBuffer<U1024, U1024> = EsbBuffer {
             app_to_radio_buf: BBBuffer(ConstBBBuffer::new()),
@@ -225,5 +226,71 @@ fn panic(info: &PanicInfo) -> ! {
     rprintln!("{}", info);
     loop {
         compiler_fence(Ordering::SeqCst);
+    }
+}
+
+mod lsm6 {
+
+    extern crate embedded_hal as hal;
+    use embedded_hal::blocking::spi::{Transfer, Write};
+
+    /// LSM6 driver
+    ///
+    /// For now assume mode 3
+
+    pub struct Lsm6<SPI, CS> {
+        spi: SPI,
+        cs: CS,
+    }
+
+    impl<SPI, CS, E> Lsm4<SPI, CS>
+    where
+        SPI: Transfer<u8, Error = E> + embedded_hal::blocking::spi::Write<u8, Error = E>,
+        CS: OutputPin,
+    {
+        /// Create the driver
+        pub fn new(spi: SPI, cs: CS) -> Result<Self, Error = E> {
+            // Todo: power up?
+            Ok(Lsm6 { spi, cs })
+        }
+
+        pub fn read_register(&mut self, reg: Register) -> Result<u8, E> {
+            self.cs.set_low();
+            let mut buffer = [reg.addr() | READ, 0];
+            self.spi.transfer(&mut buffer)?;
+            self.cs.set_high();
+        }
+    }
+
+    fn test_embedded_hal(spi: &dyn Transfer<u8, Error = hal::spim::Error>, cs: &mut OutputPin) {
+        //let who_am_i = &[0x0Fu8 << 1 | 1, 0]; // read bit set
+        let who_am_i = &[0x8Fu8, 0]; // read bit set
+                                     //rprintln!("req {:?}", req);
+        let mut first = true;
+
+        let mut req = *who_am_i;
+        match spi.transfer(cs, &mut req) {
+            Ok(_) => {
+                if first {
+                    first = false;
+                    rprintln!("ok {:?}", req);
+                }
+            }
+            Err(err) => {
+                rprintln!("error {:?}", err);
+            }
+        };
+    }
+
+    #[allow(dead_code)]
+    #[allow(non_camel_case_types)]
+    #[derive(Clone, Copy)]
+    enum Register {
+        WHO_AM_I = 0x0F,
+    }
+    impl Register {
+        fn addr(self) -> u8 {
+            self as u8
+        }
     }
 }
