@@ -13,3 +13,18 @@ To document
 ```
 > cargo doc --bins --features 52832
 ```
+
+
+## LSM6
+
+| DW | MCU | LSM6 |
+| -- | -- | -- |
+| M_PIN13 | P0.27 | CS |
+| M_PIN6  | P0.12 | SCK |
+| M_PIN14 | P0.29 | MOSI |
+| M_PIN16 | P0.23 | MISO |
+
+## Resources
+
+- file:///tmp/mozilla_pln0/DWM1001-DEV%20Datasheet
+ 

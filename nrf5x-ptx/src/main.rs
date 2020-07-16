@@ -22,7 +22,11 @@ use {
         consts::*, irq::StatePTX, Addresses, BBBuffer, ConfigBuilder, ConstBBBuffer, Error, EsbApp,
         EsbBuffer, EsbHeader, EsbIrq, IrqTimer,
     },
-    hal::pac::{TIMER0, TIMER1},
+    hal::{
+        gpio::{self, p0, p0::*, Level, PushPull},
+        pac::{TIMER0, TIMER1},
+        spim::Spim,
+    },
     rtt_target::{rprintln, rtt_init_print},
 };
 
@@ -47,6 +51,15 @@ const APP: () = {
         let _clocks = hal::clocks::Clocks::new(ctx.device.CLOCK).enable_ext_hfosc();
         rtt_init_print!();
         rprintln!("PTX init");
+
+        let port0 = p0::Parts::new(ctx.device.P0);
+
+        // Who am I
+
+        let mut cs = port0.p0_27.into_push_pull_output(Level::High);
+        let spimiso = port0.p0_23.into_floating_input().degrade();
+        let spimosi = port0.p0_29.into_push_pull_output(Level::Low).degrade();
+        let spiclk = port0.p0_12.into_push_pull_output(Level::Low).degrade();
 
         static BUFFER: EsbBuffer<U1024, U1024> = EsbBuffer {
             app_to_radio_buf: BBBuffer(ConstBBBuffer::new()),
