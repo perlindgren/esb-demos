@@ -18,7 +18,7 @@ use {
         panic::PanicInfo,
         sync::atomic::{compiler_fence, AtomicBool, Ordering},
     },
-    embedded_hal::blocking::spi::{Transfer, Write},
+    // embedded_hal::blocking::spi::{Transfer, Write},
     esb::{
         consts::*, irq::StatePTX, Addresses, BBBuffer, ConfigBuilder, ConstBBBuffer, Error, EsbApp,
         EsbBuffer, EsbHeader, EsbIrq, IrqTimer,
@@ -28,7 +28,7 @@ use {
         pac::{TIMER0, TIMER1},
         spim::Spim,
     },
-    lsm6,
+
     rtt_target::{rprintln, rtt_init_print},
 };
 
@@ -79,27 +79,32 @@ const APP: () = {
             0,
         );
 
-        // rprintln!("test {:?}, data back {:?}", tests_ok, readbuf);
-        let mut cs = cs.degrade();
-        //let who_am_i = &[0x0Fu8 << 1 | 1, 0]; // read bit set
-        let who_am_i = &[0x8Fu8, 0]; // read bit set
-                                     //rprintln!("req {:?}", req);
-        let mut first = true;
+        let mut lsm6 = lsm6::Lsm6::new(spi, cs.degrade()).unwrap();
+        rprintln!("WHO_AM_I {}", lsm6.who_am_i().unwrap());
 
-        let mut req = *who_am_i;
-        match spi.transfer(&mut cs, &mut req) {
-            Ok(_) => {
-                if first {
-                    first = false;
-                    rprintln!("ok {:?}", req);
-                }
-            }
-            Err(err) => {
-                rprintln!("error {:?}", err);
-            }
-        };
+        // //        lsm6::who_am_i(spi,)
 
-        test_embedded_hal(&spi, &mut cs);
+        // // rprintln!("test {:?}, data back {:?}", tests_ok, readbuf);
+        // let mut cs = cs.degrade();
+        // //let who_am_i = &[0x0Fu8 << 1 | 1, 0]; // read bit set
+        // let who_am_i = &[0x8Fu8, 0]; // read bit set
+        //                              //rprintln!("req {:?}", req);
+        // let mut first = true;
+
+        // let mut req = *who_am_i;
+        // match spi.transfer(&mut cs, &mut req) {
+        //     Ok(_) => {
+        //         if first {
+        //             first = false;
+        //             rprintln!("ok {:?}", req);
+        //         }
+        //     }
+        //     Err(err) => {
+        //         rprintln!("error {:?}", err);
+        //     }
+        // };
+
+        // test_embedded_hal(&spi, &mut cs);
 
         static BUFFER: EsbBuffer<U1024, U1024> = EsbBuffer {
             app_to_radio_buf: BBBuffer(ConstBBBuffer::new()),
@@ -232,7 +237,10 @@ fn panic(info: &PanicInfo) -> ! {
 mod lsm6 {
 
     extern crate embedded_hal as hal;
-    use embedded_hal::blocking::spi::{Transfer, Write};
+    use embedded_hal::{
+        blocking::spi::{Transfer, Write},
+        digital::v2::OutputPin,
+    };
 
     /// LSM6 driver
     ///
@@ -243,44 +251,52 @@ mod lsm6 {
         cs: CS,
     }
 
-    impl<SPI, CS, E> Lsm4<SPI, CS>
+    impl<SPI, CS, E> Lsm6<SPI, CS>
     where
-        SPI: Transfer<u8, Error = E> + embedded_hal::blocking::spi::Write<u8, Error = E>,
+        SPI: Transfer<u8, Error = E> + Write<u8, Error = E>,
         CS: OutputPin,
     {
         /// Create the driver
-        pub fn new(spi: SPI, cs: CS) -> Result<Self, Error = E> {
+        pub fn new(spi: SPI, cs: CS) -> Result<Self, E> {
             // Todo: power up?
             Ok(Lsm6 { spi, cs })
         }
 
+        /// Read specific register
         pub fn read_register(&mut self, reg: Register) -> Result<u8, E> {
+            const READ: u8 = 0x80u8;
             self.cs.set_low();
             let mut buffer = [reg.addr() | READ, 0];
             self.spi.transfer(&mut buffer)?;
             self.cs.set_high();
+            Ok(buffer[1])
+        }
+
+        /// Reads the WHO_AM_I register; should return `01101001`
+        pub fn who_am_i(&mut self) -> Result<u8, E> {
+            self.read_register(Register::WHO_AM_I)
         }
     }
 
-    fn test_embedded_hal(spi: &dyn Transfer<u8, Error = hal::spim::Error>, cs: &mut OutputPin) {
-        //let who_am_i = &[0x0Fu8 << 1 | 1, 0]; // read bit set
-        let who_am_i = &[0x8Fu8, 0]; // read bit set
-                                     //rprintln!("req {:?}", req);
-        let mut first = true;
+    // fn test_embedded_hal(spi: &dyn Transfer<u8, Error = hal::spim::Error>, cs: &mut OutputPin) {
+    //     //let who_am_i = &[0x0Fu8 << 1 | 1, 0]; // read bit set
+    //     let who_am_i = &[0x8Fu8, 0]; // read bit set
+    //                                  //rprintln!("req {:?}", req);
+    //     let mut first = true;
 
-        let mut req = *who_am_i;
-        match spi.transfer(cs, &mut req) {
-            Ok(_) => {
-                if first {
-                    first = false;
-                    rprintln!("ok {:?}", req);
-                }
-            }
-            Err(err) => {
-                rprintln!("error {:?}", err);
-            }
-        };
-    }
+    //     let mut req = *who_am_i;
+    //     match spi.transfer(cs, &mut req) {
+    //         Ok(_) => {
+    //             if first {
+    //                 first = false;
+    //                 rprintln!("ok {:?}", req);
+    //             }
+    //         }
+    //         Err(err) => {
+    //             rprintln!("error {:?}", err);
+    //         }
+    //     };
+    // }
 
     #[allow(dead_code)]
     #[allow(non_camel_case_types)]
