@@ -82,28 +82,27 @@ const APP: () = {
         let mut lsm6 = lsm6::Lsm6::new(spi, cs.degrade()).unwrap();
         rprintln!("WHO_AM_I {}", lsm6.who_am_i().unwrap());
 
-        // //        lsm6::who_am_i(spi,)
+        // use lsm6::Register;
+        lsm6.write_register(lsm6::Register::CTRL1_XL, 0x10);
 
-        // // rprintln!("test {:?}, data back {:?}", tests_ok, readbuf);
-        // let mut cs = cs.degrade();
-        // //let who_am_i = &[0x0Fu8 << 1 | 1, 0]; // read bit set
-        // let who_am_i = &[0x8Fu8, 0]; // read bit set
-        //                              //rprintln!("req {:?}", req);
-        // let mut first = true;
+        loop {
+            match lsm6.read_register(lsm6::Register::STATUS_REG).unwrap() {
+                0 => {}
+                data => {
+                    // rprintln!("status {}", data);
+                    if data & 0x1 == 0x1 {
+                        let temp_l = lsm6.read_register(lsm6::Register::OUT_TEMP_L).unwrap();
+                        let temp_h = lsm6.read_register(lsm6::Register::OUT_TEMP_H).unwrap();
+                        let temp = ((temp_h as u16) << 8u16) + temp_l as u16;
 
-        // let mut req = *who_am_i;
-        // match spi.transfer(&mut cs, &mut req) {
-        //     Ok(_) => {
-        //         if first {
-        //             first = false;
-        //             rprintln!("ok {:?}", req);
-        //         }
-        //     }
-        //     Err(err) => {
-        //         rprintln!("error {:?}", err);
-        //     }
-        // };
+                        rprintln!("temp = {}", temp);
+                    }
+                }
+            };
+            cortex_m::asm::delay(1000_000);
+        }
 
+        // lsm6.write_register(Lsm6::, data)
         // test_embedded_hal(&spi, &mut cs);
 
         static BUFFER: EsbBuffer<U1024, U1024> = EsbBuffer {
@@ -285,32 +284,17 @@ mod lsm6 {
         pub fn who_am_i(&mut self) -> Result<u8, E> {
             self.read_register(Register::WHO_AM_I)
         }
+
+        /// Read registers, not yet implemented
+        pub fn read_registers(&mut self, reg: Register) -> Result<u8, E> {
+            self.read_register(Register::WHO_AM_I)
+        }
     }
-
-    // fn test_embedded_hal(spi: &dyn Transfer<u8, Error = hal::spim::Error>, cs: &mut OutputPin) {
-    //     //let who_am_i = &[0x0Fu8 << 1 | 1, 0]; // read bit set
-    //     let who_am_i = &[0x8Fu8, 0]; // read bit set
-    //                                  //rprintln!("req {:?}", req);
-    //     let mut first = true;
-
-    //     let mut req = *who_am_i;
-    //     match spi.transfer(cs, &mut req) {
-    //         Ok(_) => {
-    //             if first {
-    //                 first = false;
-    //                 rprintln!("ok {:?}", req);
-    //             }
-    //         }
-    //         Err(err) => {
-    //             rprintln!("error {:?}", err);
-    //         }
-    //     };
-    // }
 
     #[allow(dead_code)]
     #[allow(non_camel_case_types)]
     #[derive(Clone, Copy)]
-    enum Register {
+    pub enum Register {
         // Embedded functions configuration register
         FUNC_CFG_ACCESS = 0x01,
 
@@ -445,7 +429,7 @@ mod lsm6 {
         OUT_MAG_RAW_Z_H = 0x6B,
     }
     impl Register {
-        fn addr(self) -> u8 {
+        pub fn addr(self) -> u8 {
             self as u8
         }
     }
