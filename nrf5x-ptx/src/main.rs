@@ -82,20 +82,66 @@ const APP: () = {
         let mut lsm6 = lsm6::Lsm6::new(spi, cs.degrade()).unwrap();
         rprintln!("WHO_AM_I {}", lsm6.who_am_i().unwrap());
 
-        // use lsm6::Register;
-        lsm6.write_register(lsm6::Register::CTRL1_XL, 0x10);
+        // CTRL1_XL (Accelerometer)
+        // ODR =
+
+        enum OdrXl {
+            Hz0 = 0b0000,    // Power-down
+            Hz12_5 = 0b0001, // low power
+            Hz26 = 0b0010,   // low power
+            Hz52 = 0b0011,   // low power
+            Hz104 = 0b0100,  // normal mode
+            Hz208 = 0b0101,  // normal mode
+            Hz416 = 0b0110,  // high performance
+            Hz833 = 0b0111,  // high performance
+            Hz1660 = 0b1000, // high performance
+            Hz3330 = 0b1001, // high performance
+            Hz6660 = 0b1010, // high performance
+        }
+        enum FsXl {
+            G2 = 0b00,  // +/- 2g
+            G4 = 0b11,  // +/- 4g
+            G8 = 0b10,  // +/- 8g
+            G16 = 0b01, // +/- 16g
+        }
+        enum BwXl {
+            Hz400,
+            Hz200,
+            Hz100,
+            Hz50,
+        }
+
+        lsm6.write_register(
+            lsm6::Register::CTRL1_XL,
+            ((OdrXl::Hz12_5 as u8) << 4) | ((FsXl::G2 as u8) << 2) | BwXl::Hz50 as u8,
+        );
 
         loop {
             match lsm6.read_register(lsm6::Register::STATUS_REG).unwrap() {
                 0 => {}
                 data => {
-                    // rprintln!("status {}", data);
-                    if data & 0x1 == 0x1 {
+                    rprintln!("status {}", data);
+                    // bit ugly, TDA
+                    if data & 0x4 == 0x4 {
                         let temp_l = lsm6.read_register(lsm6::Register::OUT_TEMP_L).unwrap();
                         let temp_h = lsm6.read_register(lsm6::Register::OUT_TEMP_H).unwrap();
-                        let temp = ((temp_h as u16) << 8u16) + temp_l as u16;
-
+                        let temp = (((temp_h as u16) << 8) + temp_l as u16) as i16;
+                        let temp = (temp as f32 / 16.0) + 25.0;
                         rprintln!("temp = {}", temp);
+                    }
+                    // bit ugly, XLDA
+                    if data & 0x1 == 0x1 {
+                        let outx_l = lsm6.read_register(lsm6::Register::OUTX_L_XL).unwrap();
+                        let outx_h = lsm6.read_register(lsm6::Register::OUTX_H_XL).unwrap();
+                        let outy_l = lsm6.read_register(lsm6::Register::OUTY_L_XL).unwrap();
+                        let outy_h = lsm6.read_register(lsm6::Register::OUTY_H_XL).unwrap();
+                        let outz_l = lsm6.read_register(lsm6::Register::OUTZ_L_XL).unwrap();
+                        let outz_h = lsm6.read_register(lsm6::Register::OUTZ_H_XL).unwrap();
+
+                        let outx = (((outx_h as u16) << 8) + outx_l as u16) as i16;
+                        let outy = (((outy_h as u16) << 8) + outy_l as u16) as i16;
+                        let outz = (((outz_h as u16) << 8) + outz_l as u16) as i16;
+                        rprintln!("x = {}, y = {}, z = {}", outx, outy, outz);
                     }
                 }
             };
